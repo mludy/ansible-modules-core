@@ -21,8 +21,6 @@
 # see examples/playbooks/uri.yml
 
 import cgi
-import shutil
-import tempfile
 import base64
 import datetime
 try:
@@ -47,6 +45,11 @@ options:
   dest:
     description:
       - path of where to download the file to (if desired). If I(dest) is a directory, the basename of the file on the remote server will be used.
+    required: false
+    default: null
+  source:
+    description:
+      - path to binary file to be uploaded to the endpoint
     required: false
     default: null
   user:
@@ -238,15 +241,17 @@ def write_file(module, url, dest, content):
 
     os.remove(tmpsrc)
 
-
 def url_filename(url):
     fn = os.path.basename(urlparse.urlsplit(url)[2])
     if fn == '':
         return 'index.html'
     return fn
 
+def load_binary(filename):
+    with open(filename, 'rb') as f:
+        return f.read()
 
-def uri(module, url, dest, user, password, body, method, headers, redirects, socket_timeout, validate_certs):
+def uri(module, url, dest,source ,user, password, body, method, headers, redirects, socket_timeout, validate_certs):
     # To debug
     #httplib2.debug = 4
 
@@ -276,6 +281,11 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
     if user is not None and password is not None:
         h.add_credentials(user, password)
 
+    # If source is set then force usage of HTTP PUT
+    if source is not None and method is not 'PUT':
+         module.fail_json(msg="Use PUT method if want to upload binary file.")
+
+
     # is dest is set and is a directory, let's check if we get redirected and
     # set the filename from that url
     redirected = False
@@ -288,7 +298,10 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
             h.follow_redirects=False
             # Try the request
             try:
-                resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
+                if source:
+                    resp_redir, content_redir = h.request(url, method=method,data=load_binary(source), body=body, headers=headers)
+                else:
+                    resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
                 # if we are redirected, update the url with the location header,
                 # and update dest with the new url filename
             except:
@@ -370,6 +383,7 @@ def main():
     body = module.params['body']
     method = module.params['method']
     dest = module.params['dest']
+    source = module.params['source']
     return_content = module.params['return_content']
     force_basic_auth = module.params['force_basic_auth']
     redirects = module.params['follow_redirects']
@@ -399,10 +413,17 @@ def main():
         # do not run the command if the line contains removes=filename
         # and the filename do not exists.  This allows idempotence
         # of uri executions.
-        v = os.path.expanduser(removes)
+        removes = os.path.expanduser(removes)
         if not os.path.exists(removes):
             module.exit_json(stdout="skipped, since %s does not exist" % removes, changed=False, stderr=False, rc=0)
 
+    if source is not None:
+        # do not run the command if the line contains source=filename
+        # and the filename do not exists.  This allows idempotence
+        # of uri executions.
+        source = os.path.expanduser(source)
+        if not os.path.exists(source) or not os.access(source, os.R_OK):
+            module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False, stderr=False, rc=0)
 
     # httplib2 only sends authentication after the server asks for it with a 401.
     # Some 'basic auth' servies fail to send a 401 and require the authentication
