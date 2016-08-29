@@ -45,6 +45,7 @@ options:
       - path to binary file to be uploaded to the endpoint
     required: false
     default: null
+    version_added: "2.2"
   user:
     description:
       - username for the module to use for Digest, Basic or WSSE authentication.
@@ -207,6 +208,16 @@ EXAMPLES = '''
     force_basic_auth: yes
     status_code: 201
 
+# Upload binary artifact to Sonatype Nexus:
+- uri:
+    url: "http://{{ nexus_host }}/content/repositories/{{ nexus_repo_id }}/artifact.jar"
+    method: PUT
+    source: "{{ nexus_artifact_path }}/artifact.jar"
+    user: "{{ nexus_user }}"
+    password: "{{ nexus_password }}"
+    force_basic_auth: yes
+    status_code: 201
+    HEADER_Content-Type=application/java-archive
 '''
 
 import cgi
