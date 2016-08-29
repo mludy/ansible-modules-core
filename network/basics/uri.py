@@ -40,6 +40,11 @@ options:
         directory, the basename of the file on the remote server will be used.
     required: false
     default: null
+  source:
+    description:
+      - path to binary file to be uploaded to the endpoint
+    required: false
+    default: null
   user:
     description:
       - username for the module to use for Digest, Basic or WSSE authentication.
@@ -278,6 +283,10 @@ def url_filename(url):
         return 'index.html'
     return fn
 
+def load_binary(filename):
+    with open(filename, 'rb') as f:
+        return f.read()
+
 
 def absolute_location(url, location):
     """Attempts to create an absolute URL based on initial URL, and
@@ -300,7 +309,7 @@ def absolute_location(url, location):
         return location
 
 
-def uri(module, url, dest, body, body_format, method, headers, socket_timeout):
+def uri(module, url, dest, source, body, body_format, method, headers, socket_timeout):
     # is dest is set and is a directory, let's check if we get redirected and
     # set the filename from that url
     redirected = False
@@ -333,7 +342,11 @@ def uri(module, url, dest, body, body_format, method, headers, socket_timeout):
         # Reset follow_redirects back to the stashed value
         module.params['follow_redirects'] = follow_redirects
 
-    resp, info = fetch_url(module, url, data=body, headers=headers,
+    if source:
+        resp, info = fetch_url(module, url, data=load_binary(source), headers=headers,
+                           method=method, timeout=socket_timeout)
+    else:
+        resp, info = fetch_url(module, url, data=body, headers=headers,
                            method=method, timeout=socket_timeout)
 
     try:
@@ -354,6 +367,7 @@ def main():
     argument_spec = url_argument_spec()
     argument_spec.update(dict(
         dest = dict(required=False, default=None, type='path'),
+        source = dict(required=False, default=None, type='path'),
         url_username = dict(required=False, default=None, aliases=['user']),
         url_password = dict(required=False, default=None, aliases=['password']),
         body = dict(required=False, default=None, type='raw'),
@@ -379,6 +393,7 @@ def main():
     body_format = module.params['body_format'].lower()
     method = module.params['method']
     dest = module.params['dest']
+    source = module.params['source']
     return_content = module.params['return_content']
     creates = module.params['creates']
     removes = module.params['removes']
@@ -414,9 +429,16 @@ def main():
         # of uri executions.
         if not os.path.exists(removes):
             module.exit_json(stdout="skipped, since %s does not exist" % removes, changed=False, stderr=False, rc=0)
+    if source is not None:
+        # do not run the command if the line contains source=filename
+        # and the filename do not exists.  This allows idempotence
+        # of uri executions.
+        if not os.path.exists(source) or not os.access(source, os.R_OK):
+            module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False, stderr=False, rc=0)
 
     # Make the request
-    resp, content, dest = uri(module, url, dest, body, body_format, method,
+
+    resp, content, dest = uri(module, url, dest, source, body, body_format, method,
                               dict_headers, socket_timeout)
     resp['status'] = int(resp['status'])
 
@@ -477,3 +499,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
