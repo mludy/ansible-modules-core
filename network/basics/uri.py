@@ -244,13 +244,11 @@ def write_file(module, url, dest, content):
 
     os.remove(tmpsrc)
 
-
 def url_filename(url):
     fn = os.path.basename(urlparse.urlsplit(url)[2])
     if fn == '':
         return 'index.html'
     return fn
-
 
 def load_binary(filename):
     with open(filename, 'rb') as f:
@@ -291,6 +289,7 @@ def uri(module, url, dest, source, user, password, body, method, headers, redire
     if source is not None and method != 'PUT':
         module.fail_json(msg="Use PUT method if want to upload binary file.")
 
+
     # is dest is set and is a directory, let's check if we get redirected and
     # set the filename from that url
     redirected = False
@@ -303,7 +302,10 @@ def uri(module, url, dest, source, user, password, body, method, headers, redire
             h.follow_redirects = False
             # Try the request
             try:
-                resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
+                if source:
+                    resp_redir, content_redir = h.request(url, method=method,data=load_binary(source), body=body, headers=headers)
+                else:
+                    resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
                 # if we are redirected, update the url with the location header,
                 # and update dest with the new url filename
             except:
@@ -420,7 +422,7 @@ def main():
         # do not run the command if the line contains removes=filename
         # and the filename do not exists.  This allows idempotence
         # of uri executions.
-        v = os.path.expanduser(removes)
+        removes = os.path.expanduser(removes)
         if not os.path.exists(removes):
             module.exit_json(stdout="skipped, since %s does not exist" % removes, changed=False, stderr=False, rc=0)
 
