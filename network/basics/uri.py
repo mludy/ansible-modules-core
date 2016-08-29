@@ -20,11 +20,10 @@
 #
 # see examples/playbooks/uri.yml
 
-import cgi
-import shutil
-import tempfile
 import base64
+import cgi
 import datetime
+
 try:
     import json
 except ImportError:
@@ -37,7 +36,7 @@ short_description: Interacts with webservices
 description:
   - Interacts with HTTP and HTTPS web services and supports Digest, Basic and WSSE
     HTTP authentication mechanisms.
-version_added: "1.1"
+version_added: "1.9"
 options:
   url:
     description:
@@ -47,6 +46,11 @@ options:
   dest:
     description:
       - path of where to download the file to (if desired). If I(dest) is a directory, the basename of the file on the remote server will be used.
+    required: false
+    default: null
+  source:
+    description:
+      - path to binary file to be uploaded to the endpoint
     required: false
     default: null
   user:
@@ -88,9 +92,9 @@ options:
   follow_redirects:
     description:
       - Whether or not the URI module should follow redirects. C(all) will follow all redirects.
-        C(safe) will follow only "safe" redirects, where "safe" means that the client is only 
+        C(safe) will follow only "safe" redirects, where "safe" means that the client is only
         doing a GET or HEAD on the URI to which it is being redirected. C(none) will not follow
-        any redirects. Note that C(yes) and C(no) choices are accepted for backwards compatibility, 
+        any redirects. Note that C(yes) and C(no) choices are accepted for backwards compatibility,
         where C(yes) is the equivalent of C(all) and C(no) is the equivalent of C(safe). C(yes) and C(no)
         are deprecated and will be removed in some future version of Ansible.
     required: false
@@ -111,7 +115,7 @@ options:
     default: 200
   timeout:
     description:
-      - The socket level timeout in seconds 
+      - The socket level timeout in seconds
     required: false
     default: 30
   HEADER_:
@@ -154,16 +158,16 @@ EXAMPLES = '''
 
 # Create a JIRA issue
 
-- uri: url=https://your.jira.example.com/rest/api/2/issue/ 
-       method=POST user=your_username password=your_pass 
-       body="{{ lookup('file','issue.json') }}" force_basic_auth=yes 
-       status_code=201 HEADER_Content-Type="application/json"  
+- uri: url=https://your.jira.example.com/rest/api/2/issue/
+       method=POST user=your_username password=your_pass
+       body="{{ lookup('file','issue.json') }}" force_basic_auth=yes
+       status_code=201 HEADER_Content-Type="application/json"
 
 # Login to a form based webpage, then use the returned cookie to
 # access the app in later tasks
 
-- uri: url=https://your.form.based.auth.examle.com/index.php 
-       method=POST body="name=your_username&password=your_password&enter=Sign%20in" 
+- uri: url=https://your.form.based.auth.examle.com/index.php
+       method=POST body="name=your_username&password=your_password&enter=Sign%20in"
        status_code=302 HEADER_Content-Type="application/x-www-form-urlencoded"
   register: login
 
@@ -172,9 +176,10 @@ EXAMPLES = '''
 
 # Queue build of a project in Jenkins:
 
-- uri: url=http://{{jenkins.host}}/job/{{jenkins.job}}/build?token={{jenkins.token}} 
+- uri: url=http://{{jenkins.host}}/job/{{jenkins.job}}/build?token={{jenkins.token}}
        method=GET user={{jenkins.user}} password={{jenkins.password}} force_basic_auth=yes status_code=201
 
+#
 '''
 
 HAS_HTTPLIB2 = True
@@ -191,6 +196,7 @@ try:
 except ImportError:
     HAS_URLPARSE = False
 
+
 def write_file(module, url, dest, content):
     # create a tempfile with some test content
     fd, tmpsrc = tempfile.mkstemp()
@@ -201,33 +207,33 @@ def write_file(module, url, dest, content):
         os.remove(tmpsrc)
         module.fail_json(msg="failed to create temporary content file: %s" % str(err))
     f.close()
- 
-    checksum_src   = None
-    checksum_dest  = None
- 
+
+    checksum_src = None
+    checksum_dest = None
+
     # raise an error if there is no tmpsrc file
     if not os.path.exists(tmpsrc):
         os.remove(tmpsrc)
         module.fail_json(msg="Source %s does not exist" % (tmpsrc))
     if not os.access(tmpsrc, os.R_OK):
         os.remove(tmpsrc)
-        module.fail_json( msg="Source %s not readable" % (tmpsrc))
+        module.fail_json(msg="Source %s not readable" % (tmpsrc))
     checksum_src = module.sha1(tmpsrc)
- 
+
     # check if there is no dest file
     if os.path.exists(dest):
         # raise an error if copy has no permission on dest
         if not os.access(dest, os.W_OK):
             os.remove(tmpsrc)
-            module.fail_json( msg="Destination %s not writable" % (dest))
+            module.fail_json(msg="Destination %s not writable" % (dest))
         if not os.access(dest, os.R_OK):
             os.remove(tmpsrc)
-            module.fail_json( msg="Destination %s not readable" % (dest))
+            module.fail_json(msg="Destination %s not readable" % (dest))
         checksum_dest = module.sha1(dest)
     else:
         if not os.access(os.path.dirname(dest), os.W_OK):
             os.remove(tmpsrc)
-            module.fail_json( msg="Destination dir %s not writable" % (os.path.dirname(dest)))
+            module.fail_json(msg="Destination dir %s not writable" % (os.path.dirname(dest)))
 
     if checksum_src != checksum_dest:
         try:
@@ -246,11 +252,16 @@ def url_filename(url):
     return fn
 
 
-def uri(module, url, dest, user, password, body, method, headers, redirects, socket_timeout, validate_certs):
-    # To debug
-    #httplib2.debug = 4
+def load_binary(filename):
+    with open(filename, 'rb') as f:
+        return f.read()
 
-    # Handle Redirects         
+
+def uri(module, url, dest, source, user, password, body, method, headers, redirects, socket_timeout, validate_certs):
+    # To debug
+    # httplib2.debug = 4
+
+    # Handle Redirects
     if redirects == "all" or redirects == "yes":
         follow_redirects = True
         follow_all_redirects = True
@@ -276,6 +287,10 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
     if user is not None and password is not None:
         h.add_credentials(user, password)
 
+    # If source is set then force usage of HTTP PUT
+    if source is not None and method != 'PUT':
+        module.fail_json(msg="Use PUT method if want to upload binary file.")
+
     # is dest is set and is a directory, let's check if we get redirected and
     # set the filename from that url
     redirected = False
@@ -285,7 +300,7 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
         dest = os.path.expanduser(dest)
         if os.path.isdir(dest):
             # first check if we are redirected to a file download
-            h.follow_redirects=False
+            h.follow_redirects = False
             # Try the request
             try:
                 resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
@@ -304,17 +319,20 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
             headers['If-Modified-Since'] = tstamp
 
     # do safe redirects now, including 307
-    h.follow_redirects=follow_redirects
+    h.follow_redirects = follow_redirects
 
     # Make the request, or try to :)
-    try: 
-        resp, content = h.request(url, method=method, body=body, headers=headers)     
+    try:
+        if source:
+            body = load_binary(source)
+        resp, content = h.request(url, method=method, body=body, headers=headers)
         r['redirected'] = redirected
         r.update(resp_redir)
         r.update(resp)
         return r, content, dest
     except httplib2.RedirectMissingLocation:
-        module.fail_json(msg="A 3xx redirect response code was provided but no Location: header was provided to point to the new location.")
+        module.fail_json(
+                msg="A 3xx redirect response code was provided but no Location: header was provided to point to the new location.")
     except httplib2.RedirectLimit:
         module.fail_json(msg="The maximum number of redirections was reached without coming to a final URI.")
     except httplib2.ServerNotFoundError:
@@ -322,7 +340,8 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
     except httplib2.RelativeURIError:
         module.fail_json(msg="A relative, as opposed to an absolute URI, was passed in.")
     except httplib2.FailedToDecompressContent:
-        module.fail_json(msg="The headers claimed that the content of the response was compressed but the decompression algorithm applied to the content failed.")
+        module.fail_json(
+                msg="The headers claimed that the content of the response was compressed but the decompression algorithm applied to the content failed.")
     except httplib2.UnimplementedDigestAuthOptionError:
         module.fail_json(msg="The server requested a type of Digest authentication that we are unfamiliar with.")
     except httplib2.UnimplementedHmacDigestAuthOptionError:
@@ -336,27 +355,29 @@ def uri(module, url, dest, user, password, body, method, headers, redirects, soc
     except socket.error, e:
         module.fail_json(msg="Socket error: %s to %s" % (e, url))
 
-def main():
 
+def main():
     module = AnsibleModule(
-        argument_spec = dict(
-            url = dict(required=True),
-            dest = dict(required=False, default=None),
-            user = dict(required=False, default=None),
-            password = dict(required=False, default=None),
-            body = dict(required=False, default=None),
-            method = dict(required=False, default='GET', choices=['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'PATCH']),
-            return_content = dict(required=False, default='no', type='bool'),
-            force_basic_auth = dict(required=False, default='no', type='bool'),
-            follow_redirects = dict(required=False, default='safe', choices=['all', 'safe', 'none', 'yes', 'no']),
-            creates = dict(required=False, default=None),
-            removes = dict(required=False, default=None),
-            status_code = dict(required=False, default=[200], type='list'),
-            timeout = dict(required=False, default=30, type='int'),
-            validate_certs = dict(required=False, default=True, type='bool'),
-        ),
-        check_invalid_arguments=False,
-        add_file_common_args=True
+            argument_spec=dict(
+                    url=dict(required=True),
+                    dest=dict(required=False, default=None),
+                    source=dict(required=False, default=None),
+                    user=dict(required=False, default=None),
+                    password=dict(required=False, default=None),
+                    body=dict(required=False, default=None),
+                    method=dict(required=False, default='GET',
+                                choices=['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'PATCH']),
+                    return_content=dict(required=False, default='no', type='bool'),
+                    force_basic_auth=dict(required=False, default='no', type='bool'),
+                    follow_redirects=dict(required=False, default='safe', choices=['all', 'safe', 'none', 'yes', 'no']),
+                    creates=dict(required=False, default=None),
+                    removes=dict(required=False, default=None),
+                    status_code=dict(required=False, default=[200], type='list'),
+                    timeout=dict(required=False, default=30, type='int'),
+                    validate_certs=dict(required=False, default=True, type='bool'),
+            ),
+            check_invalid_arguments=False,
+            add_file_common_args=True
     )
 
     if not HAS_HTTPLIB2:
@@ -364,12 +385,13 @@ def main():
     if not HAS_URLPARSE:
         module.fail_json(msg="urlparse is not installed")
 
-    url  = module.params['url']
+    url = module.params['url']
     user = module.params['user']
     password = module.params['password']
     body = module.params['body']
     method = module.params['method']
     dest = module.params['dest']
+    source = module.params['source']
     return_content = module.params['return_content']
     force_basic_auth = module.params['force_basic_auth']
     redirects = module.params['follow_redirects']
@@ -386,7 +408,6 @@ def main():
             skey = key.replace("HEADER_", "")
             dict_headers[skey] = value
 
-  
     if creates is not None:
         # do not run the command if the line contains creates=filename
         # and the filename already exists.  This allows idempotence
@@ -403,16 +424,26 @@ def main():
         if not os.path.exists(removes):
             module.exit_json(stdout="skipped, since %s does not exist" % removes, changed=False, stderr=False, rc=0)
 
+    if source is not None:
+        # do not run the command if the line contains source=filename
+        # and the filename do not exists.  This allows idempotence
+        # of uri executions.
+        source = os.path.expanduser(source)
+        if not os.path.exists(source) or not os.access(source, os.R_OK):
+            module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False,
+                             stderr=False, rc=0)
 
     # httplib2 only sends authentication after the server asks for it with a 401.
     # Some 'basic auth' servies fail to send a 401 and require the authentication
-    # up front. This creates the Basic authentication header and sends it immediately. 
+    # up front. This creates the Basic authentication header and sends it immediately.
     if force_basic_auth:
-        dict_headers["Authorization"] = "Basic {0}".format(base64.b64encode("{0}:{1}".format(user, password))) 
+        dict_headers["Authorization"] = "Basic {0}".format(base64.b64encode("{0}:{1}".format(user, password)))
 
 
-    # Make the request
-    resp, content, dest = uri(module, url, dest, user, password, body, method, dict_headers, redirects, socket_timeout, validate_certs)
+        # Make the request
+    resp, content, dest = uri(module, url, dest, source, user, password, body, method, dict_headers, redirects,
+                              socket_timeout,
+                              validate_certs)
     resp['status'] = int(resp['status'])
 
     # Write the file out if requested
@@ -434,7 +465,7 @@ def main():
     # Transmogrify the headers, replacing '-' with '_', since variables dont work with dashes.
     uresp = {}
     for key, value in resp.iteritems():
-        ukey = key.replace("-", "_")  
+        ukey = key.replace("-", "_")
         uresp[ukey] = value
 
     # Default content_encoding to try
@@ -464,5 +495,6 @@ def main():
 
 # import module snippets
 from ansible.module_utils.basic import *
+
 if __name__ == '__main__':
     main()
