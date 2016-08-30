@@ -53,6 +53,7 @@ options:
       - path to binary file to be uploaded to the endpoint
     required: false
     default: null
+    version_added: '1.9.7'
   user:
     description:
       - username for the module to use for Digest, Basic or WSSE authentication.
@@ -256,9 +257,11 @@ def url_filename(url):
     return fn
 
 def load_binary(filename):
-    with open(filename, 'rb') as f:
-        return f.read()
-
+    try:
+        f = open(filename, "rb")
+        return f
+    except Exception, err:
+        f.close()
 
 def uri(module, url, dest, source, user, password, body, method, headers, redirects, socket_timeout, validate_certs):
     # To debug
@@ -307,10 +310,7 @@ def uri(module, url, dest, source, user, password, body, method, headers, redire
             h.follow_redirects = False
             # Try the request
             try:
-                if source:
-                    resp_redir, content_redir = h.request(url, method=method,data=load_binary(source), body=body, headers=headers)
-                else:
-                    resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
+                resp_redir, content_redir = h.request(url, method=method, body=body, headers=headers)
                 # if we are redirected, update the url with the location header,
                 # and update dest with the new url filename
             except:
@@ -331,8 +331,13 @@ def uri(module, url, dest, source, user, password, body, method, headers, redire
     # Make the request, or try to :)
     try:
         if source:
-            body = load_binary(source)
-        resp, content = h.request(url, method=method, body=body, headers=headers)
+            try:
+                body = load_binary(source)
+                resp, content = h.request(url, method=method, body=body.read(), headers=headers)
+            finally:
+                body.close()
+        else:
+            resp, content = h.request(url, method=method, body=body, headers=headers)
         r['redirected'] = redirected
         r.update(resp_redir)
         r.update(resp)
