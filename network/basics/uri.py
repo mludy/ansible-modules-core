@@ -294,7 +294,7 @@ def load_binary(filename):
     try:
         f = open(filename, "rb")
         return f
-    except Exception, err:
+    except Exception:
         f.close()
 
 
