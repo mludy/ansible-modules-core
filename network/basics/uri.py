@@ -295,8 +295,11 @@ def url_filename(url):
     return fn
 
 def load_binary(filename):
-    with open(filename, 'rb') as f:
-        return f.read()
+    try:
+        f = open(filename, "rb")
+        return f
+    except Exception, err:
+        f.close()
 
 
 def absolute_location(url, location):
@@ -353,9 +356,14 @@ def uri(module, url, dest, source, body, body_format, method, headers, socket_ti
         # Reset follow_redirects back to the stashed value
         module.params['follow_redirects'] = follow_redirects
 
+
     if source:
-        resp, info = fetch_url(module, url, data=load_binary(source), headers=headers,
+        try:
+            body = load_binary(source)
+            resp, info = fetch_url(module, url, data=body.read(), headers=headers,
                            method=method, timeout=socket_timeout)
+        finally:
+            body.close()
     else:
         resp, info = fetch_url(module, url, data=body, headers=headers,
                            method=method, timeout=socket_timeout)
@@ -440,6 +448,7 @@ def main():
         # of uri executions.
         if not os.path.exists(removes):
             module.exit_json(stdout="skipped, since %s does not exist" % removes, changed=False, stderr=False, rc=0)
+
     if source is not None:
         # do not run the command if the line contains source=filename
         # and the filename do not exists.  This allows idempotence
