@@ -36,7 +36,7 @@ short_description: Interacts with webservices
 description:
   - Interacts with HTTP and HTTPS web services and supports Digest, Basic and WSSE
     HTTP authentication mechanisms.
-version_added: "1.9"
+version_added: "1.1"
 options:
   url:
     description:
