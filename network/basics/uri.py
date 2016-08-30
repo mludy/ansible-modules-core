@@ -250,18 +250,21 @@ def write_file(module, url, dest, content):
 
     os.remove(tmpsrc)
 
+
 def url_filename(url):
     fn = os.path.basename(urlparse.urlsplit(url)[2])
     if fn == '':
         return 'index.html'
     return fn
 
+
 def load_binary(filename):
     try:
         f = open(filename, "rb")
         return f
-    except Exception, err:
+    except Exception:
         f.close()
+
 
 def uri(module, url, dest, source, user, password, body, method, headers, redirects, socket_timeout, validate_certs):
     # To debug
@@ -296,7 +299,6 @@ def uri(module, url, dest, source, user, password, body, method, headers, redire
     # If source is set then force usage of HTTP PUT
     if source is not None and method != 'PUT':
         module.fail_json(msg="Use PUT method if want to upload binary file.")
-
 
     # is dest is set and is a directory, let's check if we get redirected and
     # set the filename from that url
