@@ -455,6 +455,10 @@ def main():
         # of uri executions.
         if not os.path.exists(source) or not os.access(source, os.R_OK):
             module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False, stderr=False, rc=0)
+        if  not ( method == 'PUT' or method == 'POST'):
+            module.exit_json(stdout="skipped, since %s is not allowed method for sending binary data" % method, changed=False, stderr=False, rc=0)
+
+
 
     # Make the request
 
