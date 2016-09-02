@@ -21,8 +21,6 @@
 # see examples/playbooks/uri.yml
 
 import cgi
-import shutil
-import tempfile
 import datetime
 
 try:
@@ -31,7 +29,6 @@ except ImportError:
     import simplejson as json
 
 import ansible.module_utils.six as six
-
 
 DOCUMENTATION = '''
 ---
@@ -246,8 +243,8 @@ def write_file(module, url, dest, content):
         module.fail_json(msg="failed to create temporary content file: %s" % str(err))
     f.close()
 
-    checksum_src   = None
-    checksum_dest  = None
+    checksum_src = None
+    checksum_dest = None
 
     # raise an error if there is no tmpsrc file
     if not os.path.exists(tmpsrc):
@@ -255,7 +252,7 @@ def write_file(module, url, dest, content):
         module.fail_json(msg="Source %s does not exist" % (tmpsrc))
     if not os.access(tmpsrc, os.R_OK):
         os.remove(tmpsrc)
-        module.fail_json( msg="Source %s not readable" % (tmpsrc))
+        module.fail_json(msg="Source %s not readable" % (tmpsrc))
     checksum_src = module.sha1(tmpsrc)
 
     # check if there is no dest file
@@ -289,6 +286,7 @@ def url_filename(url):
     if fn == '':
         return 'index.html'
     return fn
+
 
 def load_binary(filename):
     try:
@@ -352,17 +350,16 @@ def uri(module, url, dest, source, body, body_format, method, headers, socket_ti
         # Reset follow_redirects back to the stashed value
         module.params['follow_redirects'] = follow_redirects
 
-
     if source:
         try:
             body = load_binary(source)
             resp, info = fetch_url(module, url, data=body.read(), headers=headers,
-                           method=method, timeout=socket_timeout)
+                                   method=method, timeout=socket_timeout)
         finally:
             body.close()
     else:
         resp, info = fetch_url(module, url, data=body, headers=headers,
-                           method=method, timeout=socket_timeout)
+                               method=method, timeout=socket_timeout)
 
     try:
         content = resp.read()
@@ -381,29 +378,31 @@ def uri(module, url, dest, source, body, body_format, method, headers, socket_ti
 def main():
     argument_spec = url_argument_spec()
     argument_spec.update(dict(
-        dest = dict(required=False, default=None, type='path'),
-        source = dict(required=False, default=None, type='path'),
-        url_username = dict(required=False, default=None, aliases=['user']),
-        url_password = dict(required=False, default=None, aliases=['password']),
-        body = dict(required=False, default=None, type='raw'),
-        body_format = dict(required=False, default='raw', choices=['raw', 'json']),
-        method = dict(required=False, default='GET', choices=['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'PATCH', 'TRACE', 'CONNECT', 'REFRESH']),
-        return_content = dict(required=False, default='no', type='bool'),
-        follow_redirects = dict(required=False, default='safe', choices=['all', 'safe', 'none', 'yes', 'no']),
-        creates = dict(required=False, default=None, type='path'),
-        removes = dict(required=False, default=None, type='path'),
-        status_code = dict(required=False, default=[200], type='list'),
-        timeout = dict(required=False, default=30, type='int'),
-        headers = dict(required=False, type='dict', default={})
+            dest=dict(required=False, default=None, type='path'),
+            source=dict(required=False, default=None, type='path'),
+            url_username=dict(required=False, default=None, aliases=['user']),
+            url_password=dict(required=False, default=None, aliases=['password']),
+            body=dict(required=False, default=None, type='raw'),
+            body_format=dict(required=False, default='raw', choices=['raw', 'json']),
+            method=dict(required=False, default='GET',
+                        choices=['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'PATCH', 'TRACE', 'CONNECT',
+                                 'REFRESH']),
+            return_content=dict(required=False, default='no', type='bool'),
+            follow_redirects=dict(required=False, default='safe', choices=['all', 'safe', 'none', 'yes', 'no']),
+            creates=dict(required=False, default=None, type='path'),
+            removes=dict(required=False, default=None, type='path'),
+            status_code=dict(required=False, default=[200], type='list'),
+            timeout=dict(required=False, default=30, type='int'),
+            headers=dict(required=False, type='dict', default={})
     ))
 
     module = AnsibleModule(
-        argument_spec=argument_spec,
-        check_invalid_arguments=False,
-        add_file_common_args=True
+            argument_spec=argument_spec,
+            check_invalid_arguments=False,
+            add_file_common_args=True
     )
 
-    url  = module.params['url']
+    url = module.params['url']
     body = module.params['body']
     body_format = module.params['body_format'].lower()
     method = module.params['method']
@@ -450,11 +449,11 @@ def main():
         # and the filename do not exists.  This allows idempotence
         # of uri executions.
         if not os.path.exists(source) or not os.access(source, os.R_OK):
-            module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False, stderr=False, rc=0)
-        if  not ( method == 'PUT' or method == 'POST'):
-            module.exit_json(stdout="skipped, since %s is not allowed method for sending binary data" % method, changed=False, stderr=False, rc=0)
-
-
+            module.exit_json(stdout="skipped, since %s does not exist or is unaccessible" % source, changed=False,
+                             stderr=False, rc=0)
+        if not (method == 'PUT' or method == 'POST'):
+            module.exit_json(stdout="skipped, since %s is not allowed method for sending binary data" % method,
+                             changed=False, stderr=False, rc=0)
 
     # Make the request
 
@@ -521,4 +520,3 @@ from ansible.module_utils.urls import *
 
 if __name__ == '__main__':
     main()
-
