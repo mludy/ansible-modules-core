@@ -259,7 +259,7 @@ def write_file(module, url, dest, content):
         module.fail_json(msg="Source %s does not exist" % (tmpsrc))
     if not os.access(tmpsrc, os.R_OK):
         os.remove(tmpsrc)
-        module.fail_json( msg="Source %s not readable" % (tmpsrc))
+        module.fail_json(msg="Source %s not readable" % (tmpsrc))
     checksum_src = module.sha1(tmpsrc)
 
     # check if there is no dest file
@@ -498,7 +498,7 @@ def main():
 
     # Default content_encoding to try
     content_encoding = 'utf-8'
-    if 'content_type' in uresp:
+    if 'content_type' in uresp: 
         content_type, params = cgi.parse_header(uresp['content_type'])
         if 'charset' in params:
             content_encoding = params['charset']
