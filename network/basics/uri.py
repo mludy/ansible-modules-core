@@ -45,7 +45,7 @@ options:
       - path to binary file to be uploaded to the endpoint
     required: false
     default: null
-    version_added: "2.2"
+    version_added: "2.3"
   user:
     description:
       - username for the module to use for Digest, Basic or WSSE authentication.
